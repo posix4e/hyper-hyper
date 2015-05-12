@@ -51,14 +51,18 @@ impl Handler for Echo {
             Ok(Some(r)) => {
                 println!("CONN : we read {} bytes!", r);
                 self.interest.remove(Interest::readable());
+                if (r > 0){
+                    event_loop.reregister(&self.non_block_client, token, self.interest,
+                                          PollOpt::edge() | PollOpt::oneshot());
+                } else {
+                    event_loop.shutdown();
+                }
             }
             Err(e) => {
                 println!("not implemented; client err={:?}", e);
                 self.interest.remove(Interest::readable());
             }
         }
-        event_loop.reregister(&self.non_block_client, token, self.interest,
-                              PollOpt::edge() | PollOpt::oneshot());
     }
 
     fn writable(&mut self, event_loop: &mut EventLoop<Echo>, token: Token) {
@@ -110,5 +114,6 @@ fn get_web_page(hostname: String, port: u32, get_resource: String) {
 
 #[test]
 fn test() {
+    println!("test");
     get_web_page("www.google.com".to_string(), 80, "/".to_string());
 }
