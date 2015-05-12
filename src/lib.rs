@@ -1,7 +1,8 @@
 #![crate_type = "lib"]
 #![crate_name = "hyperhyper"]
 #![feature(std_misc)]
-
+#![feature(lookup_host)]
+#![feature(ip_addr)] 
 extern crate mio;
 
 use mio::*;
@@ -14,7 +15,7 @@ use std::net::Shutdown;
 use std::collections::LinkedList;
 // Define a handler to process the events
 use std::{io, thread};
-
+use std::net;
 const SERVER: Token = Token(0);
 const CLIENT: Token = Token(1);
 
@@ -98,7 +99,7 @@ pub fn google() -> SocketAddr {
     FromStr::from_str(&s).unwrap()
 }
 
-fn get_web_page(hostname: String, port: u32, get_resource: String) {
+fn get_web_page(hostname: String, port: u16, get_resource: String) {
     let mut event_loop = EventLoop::new().unwrap();
     // == Create & setup client socket
 
@@ -106,7 +107,9 @@ fn get_web_page(hostname: String, port: u32, get_resource: String) {
 
     // == Run test
     println!("Connecting");
-    let (mut sock, _) = tcp::v4().unwrap().connect(&google()).unwrap();
+    let ip = std::net::lookup_host(&hostname).unwrap().next().unwrap().unwrap();
+    let address = SocketAddr::new(ip.ip(), port);
+    let (mut sock, _) = tcp::v4().unwrap().connect(&address).unwrap();
     event_loop.register_opt(&sock, CLIENT, Interest::writable(),
                             PollOpt::edge() | PollOpt::oneshot()).unwrap();
     event_loop.run(&mut Echo::new(sock));
