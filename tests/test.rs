@@ -1,6 +1,5 @@
 #![feature(collections)]
 
-
 extern crate mio;
 use std::net::SocketAddr;
 
@@ -8,7 +7,6 @@ use std::str::FromStr;
 use std::rc::Rc;
 extern crate hyperhyper;
 use hyperhyper::*;
-
 
 pub fn google() -> SocketAddr {
     let s = format!("216.58.192.4: {}", 80);

@@ -9,10 +9,8 @@ use mio::*;
 use mio::tcp::*;
 use std::net::SocketAddr;
 
-
 use mio::buf::{ByteBuf, MutByteBuf};
 use std::rc::Rc;
-
 
 // Define a handler to process the events
 const SERVER: Token = Token(0);
@@ -106,10 +104,6 @@ impl Handler for Echo {
 
 pub fn get_web_page(hostname: String, port: u16, action: HttpAction) {
     let mut event_loop = EventLoop::new().unwrap();
-    // == Create & setup client socket
-
-    // == Run test
-    println!("Connecting");
     let ip = std::net::lookup_host(&hostname).unwrap().next().unwrap().unwrap();
     let address = SocketAddr::new(ip.ip(), port);
     let (sock, _) = TcpSocket::v4().unwrap().connect(&address).unwrap();
