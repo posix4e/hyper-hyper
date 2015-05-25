@@ -2,6 +2,7 @@
 #![crate_name = "hyperhyper"]
 #![feature(lookup_host)]
 #![feature(ip_addr)]
+#![feature(collections)]
 extern crate mio;
 
 use mio::*;
@@ -9,26 +10,27 @@ use mio::tcp::*;
 use std::str::FromStr;
 use std::net::SocketAddr;
 use mio::buf::{ByteBuf, MutByteBuf};
+use std::rc::Rc;
+
 // Define a handler to process the events
 const SERVER: Token = Token(0);
 const CLIENT: Token = Token(1);
+
 enum HTTP_ACTION {
-	Get(Into<String>),
+    Get(Rc<String>),
 }
 
 struct Echo {
     non_block_client: TcpStream,
-    action: Box<HTTP_ACTION>,
+    action: HTTP_ACTION,
     token: Option<Token>,
     mut_buf: Option<MutByteBuf>,
-
     buf: Option<ByteBuf>,
     interest: Interest
 }
 
 impl Echo {
-    fn new(client: TcpStream, 
-    	action: Box<HTTP_ACTION>) -> Echo {
+    fn new(client: TcpStream, action: HTTP_ACTION) -> Echo {
         Echo {
             non_block_client: client,
             action: action,
@@ -67,28 +69,35 @@ impl Handler for Echo {
     }
 
     fn writable(&mut self, event_loop: &mut EventLoop<Echo>, token: Token) {
-    	let ref foo = self.action;
-        let mut buf = ByteBuf::from_slice("GET /\n".as_bytes());
+       match (self.action) {
+       		HTTP_ACTION::Get(ref resource) => {
+       				let get_command: String = String::from_str("GET ") + resource;
+					let mut buf = ByteBuf::from_slice(get_command.as_bytes());
+					println!("GET {}",resource);
+                        match self.non_block_client.write(&mut buf) {
+                            Ok(None) => {
+                                println!("client flushing buf; WOULDBLOCK");
+                                self.buf = Some(buf);
+                                self.interest.insert(Interest::writable());
+                            }
+                            Ok(Some(r)) => {
+                                println!("CONN : we wrote {} bytes!", r);
 
-        match self.non_block_client.write(&mut buf) {
-            Ok(None) => {
-                println!("client flushing buf; WOULDBLOCK");
+                                self.mut_buf = Some(buf.flip());
 
-                self.buf = Some(buf);
-                self.interest.insert(Interest::writable());
-            }
-            Ok(Some(r)) => {
-                println!("CONN : we wrote {} bytes!", r);
+                                self.interest.insert(Interest::readable());
+                                self.interest.remove(Interest::writable());
+                            }
+                            Err(e) => println!("not implemented; client err={:?}", e),
+                        }
+                        event_loop.reregister(&self.non_block_client, token, self.interest,
+                                              PollOpt::edge() | PollOpt::oneshot());
 
-                self.mut_buf = Some(buf.flip());
-
-                self.interest.insert(Interest::readable());
-                self.interest.remove(Interest::writable());
-            }
-            Err(e) => println!("not implemented; client err={:?}", e),
-        }
-        event_loop.reregister(&self.non_block_client, token, self.interest,
-                              PollOpt::edge() | PollOpt::oneshot());
+			
+       			}
+       }
+                   //_ => {}
+            
     }
     fn notify(&mut self, event_loop: &mut EventLoop<Echo>, msg: String) {
         println!("test3");
@@ -100,7 +109,7 @@ pub fn google() -> SocketAddr {
     FromStr::from_str(&s).unwrap()
 }
 
-fn get_web_page(hostname: String, port: u16, action: Box<HTTP_ACTION>) {
+fn get_web_page(hostname: String, port: u16, action: HTTP_ACTION) {
     let mut event_loop = EventLoop::new().unwrap();
     // == Create & setup client socket
 
@@ -119,5 +128,7 @@ fn get_web_page(hostname: String, port: u16, action: Box<HTTP_ACTION>) {
 #[test]
 fn test() {
     println!("test");
-    get_web_page("www.google.com".to_string(), 80, Box::new(Get("/")));
+    let path = String::from_str("/");
+    let resource = Rc::new(path);
+    get_web_page("www.google.com".to_string(), 80, HTTP_ACTION::Get(resource));
 }
