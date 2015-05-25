@@ -1,6 +1,5 @@
 #![crate_type = "lib"]
 #![crate_name = "hyperhyper"]
-#![feature(std_misc)]
 #![feature(lookup_host)]
 #![feature(ip_addr)]
 extern crate mio;
@@ -9,10 +8,7 @@ use mio::*;
 use mio::tcp::*;
 use std::str::FromStr;
 use std::net::SocketAddr;
-use std::time::Duration;
 use mio::buf::{ByteBuf, MutByteBuf, SliceBuf};
-use std::net::Shutdown;
-use std::collections::LinkedList;
 // Define a handler to process the events
 use std::{io, thread};
 use std::net;
@@ -20,7 +16,7 @@ const SERVER: Token = Token(0);
 const CLIENT: Token = Token(1);
 
 struct Echo {
-    non_block_client: NonBlock<TcpStream>,
+    non_block_client: TcpStream,
     token: Option<Token>,
     mut_buf: Option<MutByteBuf>,
 
@@ -29,7 +25,7 @@ struct Echo {
 }
 
 impl Echo {
-    fn new(client: NonBlock<TcpStream>) -> Echo {
+    fn new(client: TcpStream) -> Echo {
         Echo {
             non_block_client: client,
             mut_buf: Some(ByteBuf::mut_with_capacity(2048)),
@@ -109,7 +105,7 @@ fn get_web_page(hostname: String, port: u16, get_resource: String) {
     println!("Connecting");
     let ip = std::net::lookup_host(&hostname).unwrap().next().unwrap().unwrap();
     let address = SocketAddr::new(ip.ip(), port);
-    let (mut sock, _) = tcp::v4().unwrap().connect(&address).unwrap();
+    let (sock, _) = TcpSocket::v4().unwrap().connect(&address).unwrap();
     event_loop.register_opt(&sock, CLIENT, Interest::writable(),
                             PollOpt::edge() | PollOpt::oneshot()).unwrap();
     event_loop.run(&mut Echo::new(sock));

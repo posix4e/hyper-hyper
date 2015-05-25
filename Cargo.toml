@@ -4,4 +4,4 @@ version = "0.0.1"
 authors = ["Alex Newman <posix4e@gmail.com>"]
 
 [dependencies.mio]
-git = "file:///home/posix4e/projects/mio"
+git = "https://github.com/carllerche/mio"
