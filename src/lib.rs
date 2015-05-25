@@ -8,15 +8,17 @@ use mio::*;
 use mio::tcp::*;
 use std::str::FromStr;
 use std::net::SocketAddr;
-use mio::buf::{ByteBuf, MutByteBuf, SliceBuf};
+use mio::buf::{ByteBuf, MutByteBuf};
 // Define a handler to process the events
-use std::{io, thread};
-use std::net;
 const SERVER: Token = Token(0);
 const CLIENT: Token = Token(1);
+enum HTTP_ACTION {
+	Get(Into<String>),
+}
 
 struct Echo {
     non_block_client: TcpStream,
+    action: Box<HTTP_ACTION>,
     token: Option<Token>,
     mut_buf: Option<MutByteBuf>,
 
@@ -25,9 +27,11 @@ struct Echo {
 }
 
 impl Echo {
-    fn new(client: TcpStream) -> Echo {
+    fn new(client: TcpStream, 
+    	action: Box<HTTP_ACTION>) -> Echo {
         Echo {
             non_block_client: client,
+            action: action,
             mut_buf: Some(ByteBuf::mut_with_capacity(2048)),
             interest: Interest::hup(),
             buf: None,
@@ -63,6 +67,7 @@ impl Handler for Echo {
     }
 
     fn writable(&mut self, event_loop: &mut EventLoop<Echo>, token: Token) {
+    	let ref foo = self.action;
         let mut buf = ByteBuf::from_slice("GET /\n".as_bytes());
 
         match self.non_block_client.write(&mut buf) {
@@ -95,7 +100,7 @@ pub fn google() -> SocketAddr {
     FromStr::from_str(&s).unwrap()
 }
 
-fn get_web_page(hostname: String, port: u16, get_resource: String) {
+fn get_web_page(hostname: String, port: u16, action: Box<HTTP_ACTION>) {
     let mut event_loop = EventLoop::new().unwrap();
     // == Create & setup client socket
 
@@ -108,11 +113,11 @@ fn get_web_page(hostname: String, port: u16, get_resource: String) {
     let (sock, _) = TcpSocket::v4().unwrap().connect(&address).unwrap();
     event_loop.register_opt(&sock, CLIENT, Interest::writable(),
                             PollOpt::edge() | PollOpt::oneshot()).unwrap();
-    event_loop.run(&mut Echo::new(sock));
+    event_loop.run(&mut Echo::new(sock, action));
 }
 
 #[test]
 fn test() {
     println!("test");
-    get_web_page("www.google.com".to_string(), 80, "/".to_string());
+    get_web_page("www.google.com".to_string(), 80, Box::new(Get("/")));
 }
