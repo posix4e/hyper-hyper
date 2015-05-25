@@ -2,7 +2,7 @@
 #![crate_name = "hyperhyper"]
 #![feature(std_misc)]
 #![feature(lookup_host)]
-#![feature(ip_addr)] 
+#![feature(ip_addr)]
 extern crate mio;
 
 use mio::*;
@@ -52,7 +52,7 @@ impl Handler for Echo {
             Ok(Some(r)) => {
                 println!("CONN : we read {} bytes!", r);
                 self.interest.remove(Interest::readable());
-                if (r > 0){
+                if (r > 0) {
                     event_loop.reregister(&self.non_block_client, token, self.interest,
                                           PollOpt::edge() | PollOpt::oneshot());
                 } else {
