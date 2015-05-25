@@ -1,22 +1,14 @@
 #![feature(collections)]
 
 extern crate mio;
-use std::net::SocketAddr;
-
-use std::str::FromStr;
 use std::rc::Rc;
 extern crate hyperhyper;
-use hyperhyper::*;
-
-pub fn google() -> SocketAddr {
-    let s = format!("216.58.192.4: {}", 80);
-    FromStr::from_str(&s).unwrap()
-}
+use hyperhyper::poke_web_page;
+use hyperhyper::HttpAction;
 
 #[test]
-fn test() {
-    let path = String::from_str("/");
-    let resource = Rc::new(path);
-    get_web_page("news.ycombinator.com".to_string(), 80, HttpAction::Get(resource));
-    //println!(result);
+fn get_a_simple_webpage() {
+    poke_web_page("news.ycombinator.com".to_string(), 
+    	80, 
+    	HttpAction::Get(Rc::new(String::from_str("/"))));
 }

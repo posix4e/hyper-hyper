@@ -57,7 +57,7 @@ impl Handler for Echo {
                 self.interest.remove(Interest::readable());
                 if r > 0 {
                     event_loop.reregister(&self.non_block_client, token, self.interest,
-                                          PollOpt::edge() | PollOpt::oneshot());
+                                          PollOpt::edge() | PollOpt::oneshot()).unwrap();
                 } else {
                     event_loop.shutdown();
                 }
@@ -102,12 +102,12 @@ impl Handler for Echo {
     }
 }
 
-pub fn get_web_page(hostname: String, port: u16, action: HttpAction) {
+pub fn poke_web_page(hostname: String, port: u16, action: HttpAction) {
     let mut event_loop = EventLoop::new().unwrap();
     let ip = std::net::lookup_host(&hostname).unwrap().next().unwrap().unwrap();
     let address = SocketAddr::new(ip.ip(), port);
     let (sock, _) = TcpSocket::v4().unwrap().connect(&address).unwrap();
     event_loop.register_opt(&sock, CLIENT, Interest::writable(),
                             PollOpt::edge() | PollOpt::oneshot()).unwrap();
-    event_loop.run(&mut Echo::new(sock, action));
+    event_loop.run(&mut Echo::new(sock, action)).unwrap()
 }
