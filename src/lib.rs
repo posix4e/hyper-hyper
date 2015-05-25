@@ -13,7 +13,6 @@ use mio::buf::{ByteBuf, MutByteBuf};
 use std::rc::Rc;
 
 // Define a handler to process the events
-const SERVER: Token = Token(0);
 const CLIENT: Token = Token(1);
 
 pub enum HttpAction {
@@ -23,7 +22,6 @@ pub enum HttpAction {
 pub struct Echo {
     non_block_client: TcpStream,
     action: HttpAction,
-    token: Option<Token>,
     mut_buf: Option<MutByteBuf>,
     buf: Option<ByteBuf>,
     interest: Interest
@@ -37,7 +35,6 @@ impl Echo {
             mut_buf: Some(ByteBuf::mut_with_capacity(2048)),
             interest: Interest::hup(),
             buf: None,
-            token: None,
         }
     }
 }
@@ -46,8 +43,8 @@ impl Handler for Echo {
     type Message = String;
 
     fn readable(&mut self, event_loop: &mut EventLoop<Echo>, token: Token, hint: ReadHint) {
-        println!("Read");
         let mut buf = ByteBuf::mut_with_capacity(2048);
+        
         match self.non_block_client.read(&mut buf) {
             Ok(None) => {
                 println!("We just got readable, but were unable to read from the socket?");
@@ -56,7 +53,8 @@ impl Handler for Echo {
                 println!("CONN : we read {} bytes!", r);
                 self.interest.remove(Interest::readable());
                 if r > 0 {
-                    event_loop.reregister(&self.non_block_client, token, self.interest,
+                	self.mut_buf.as_mut().unwrap().write_slice(buf.flip().bytes());
+                	event_loop.reregister(&self.non_block_client, token, self.interest,
                                           PollOpt::edge() | PollOpt::oneshot()).unwrap();
                 } else {
                     event_loop.shutdown();
@@ -83,9 +81,6 @@ impl Handler for Echo {
                     }
                     Ok(Some(r)) => {
                         println!("CONN : we wrote {} bytes!", r);
-
-                        self.mut_buf = Some(buf.flip());
-
                         self.interest.insert(Interest::readable());
                         self.interest.remove(Interest::writable());
                     }
@@ -109,5 +104,6 @@ pub fn poke_web_page(hostname: String, port: u16, action: HttpAction) {
     let (sock, _) = TcpSocket::v4().unwrap().connect(&address).unwrap();
     event_loop.register_opt(&sock, CLIENT, Interest::writable(),
                             PollOpt::edge() | PollOpt::oneshot()).unwrap();
-    event_loop.run(&mut Echo::new(sock, action)).unwrap()
+    let echo = &mut Echo::new(sock, action);
+    event_loop.run(echo).unwrap()
 }

@@ -1,8 +1,9 @@
 #![feature(collections)]
 
 extern crate mio;
-use std::rc::Rc;
 extern crate hyperhyper;
+
+use std::rc::Rc;
 use hyperhyper::poke_web_page;
 use hyperhyper::HttpAction;
 
