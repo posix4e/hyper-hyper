@@ -97,7 +97,7 @@ impl Handler for Echo {
     }
 }
 
-pub fn poke_web_page(hostname: String, port: u16, action: HttpAction) {
+pub fn poke_web_page(hostname: String, port: u16, action: HttpAction) -> Vec<u8> {
     let mut event_loop = EventLoop::new().unwrap();
     let ip = std::net::lookup_host(&hostname).unwrap().next().unwrap().unwrap();
     let address = SocketAddr::new(ip.ip(), port);
@@ -106,13 +106,5 @@ pub fn poke_web_page(hostname: String, port: u16, action: HttpAction) {
                             PollOpt::edge() | PollOpt::oneshot()).unwrap();
     let echo = &mut Echo::new(sock, action);
     event_loop.run(echo).unwrap();
-    
-//    let s = match str::from_utf8(buf) {
- //       Ok(v) => v,
-//        Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
-   // };
-
-	let result = String::from_utf8(echo.slab.clone());
-	println!("{}", result.unwrap());
-    
+	echo.slab.clone()
 }
