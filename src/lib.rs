@@ -9,12 +9,14 @@ use mio::*;
 use mio::tcp::*;
 use std::net::SocketAddr;
 
-use mio::buf::{ByteBuf, MutByteBuf};
+use mio::buf::ByteBuf;
 use std::rc::Rc;
+use mio::util::Slab;
 
 // Define a handler to process the events
 const CLIENT: Token = Token(1);
 
+#[derive(Debug)]
 pub enum HttpAction {
     Get(Rc<String>),
 }
@@ -22,7 +24,7 @@ pub enum HttpAction {
 pub struct Echo {
     non_block_client: TcpStream,
     action: HttpAction,
-    mut_buf: Option<MutByteBuf>,
+    slab: Vec<u8>,
     buf: Option<ByteBuf>,
     interest: Interest
 }
@@ -32,7 +34,7 @@ impl Echo {
         Echo {
             non_block_client: client,
             action: action,
-            mut_buf: Some(ByteBuf::mut_with_capacity(2048)),
+            slab: Vec::new(),
             interest: Interest::hup(),
             buf: None,
         }
@@ -50,10 +52,9 @@ impl Handler for Echo {
                 println!("We just got readable, but were unable to read from the socket?");
             }
             Ok(Some(r)) => {
-                println!("CONN : we read {} bytes!", r);
                 self.interest.remove(Interest::readable());
                 if r > 0 {
-                	self.mut_buf.as_mut().unwrap().write_slice(buf.flip().bytes());
+                	self.slab.push_all(buf.flip().bytes());
                 	event_loop.reregister(&self.non_block_client, token, self.interest,
                                           PollOpt::edge() | PollOpt::oneshot()).unwrap();
                 } else {
@@ -80,11 +81,10 @@ impl Handler for Echo {
                         self.interest.insert(Interest::writable());
                     }
                     Ok(Some(r)) => {
-                        println!("CONN : we wrote {} bytes!", r);
                         self.interest.insert(Interest::readable());
                         self.interest.remove(Interest::writable());
                     }
-                    Err(e) => println!("not implemented; client err={:?}", e),
+                    Err(e) => panic!("not implemented; client err={:?}", e),
                 }
                 event_loop.reregister(&self.non_block_client, token, self.interest,
                                       PollOpt::edge() | PollOpt::oneshot()).unwrap();
@@ -93,7 +93,7 @@ impl Handler for Echo {
         //_ => {}
     }
     fn notify(&mut self, event_loop: &mut EventLoop<Echo>, msg: String) {
-        println!("test3");
+
     }
 }
 
@@ -105,5 +105,14 @@ pub fn poke_web_page(hostname: String, port: u16, action: HttpAction) {
     event_loop.register_opt(&sock, CLIENT, Interest::writable(),
                             PollOpt::edge() | PollOpt::oneshot()).unwrap();
     let echo = &mut Echo::new(sock, action);
-    event_loop.run(echo).unwrap()
+    event_loop.run(echo).unwrap();
+    
+//    let s = match str::from_utf8(buf) {
+ //       Ok(v) => v,
+//        Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+   // };
+
+	let result = String::from_utf8(echo.slab.clone());
+	println!("{}", result.unwrap());
+    
 }
