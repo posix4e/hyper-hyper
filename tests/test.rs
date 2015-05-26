@@ -4,8 +4,8 @@ extern crate mio;
 extern crate hyperhyper;
 
 use std::rc::Rc;
-use hyperhyper::poke_web_page;
-use hyperhyper::HttpAction;
+use hyperhyper::action::poke_web_page;
+use hyperhyper::action::HttpAction;
 
 #[test]
 fn get_a_simple_webpage() {
