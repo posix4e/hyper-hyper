@@ -3,7 +3,7 @@ extern crate mio;
 extern crate hyperhyper;
 extern crate eventual;
 
-use mio::*;
+use mio::EventLoop;
 use hyperhyper::action::Echo;
 use std::thread;
 use eventual::Async;
