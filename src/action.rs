@@ -41,8 +41,8 @@ impl Handler for Echo {
     type Message = (String, eventual::Complete<Box<Vec<u8>>, &'static str>);
 
     fn readable(&mut self, event_loop: &mut EventLoop<Echo>, token: Token, hint: ReadHint) {
-        println!("Read");
-        
+        println!("Read {:?} {:?}", hint, token);
+
         let mut buf = ByteBuf::mut_with_capacity(4096 * 16);
 
         let ref mut non_block_client = match self.non_block_client.get_mut(&token.as_usize()) {
@@ -59,10 +59,11 @@ impl Handler for Echo {
                 panic!("We just got readable, but were unable to read from the socket?");
             }
             Ok(Some(r)) => {
+            	println!("r {} ", r);
                 interest.remove(Interest::readable());
                 if r == 0 {
-                	println!("DONE");
-                    event_loop.deregister(*non_block_client).unwrap();
+                    println!("DONE");
+                    //event_loop.deregister(*non_block_client).unwrap();
                     let mut_buf = match self.mut_buf.remove(&token.as_usize()) {
                         Some(mut_buf) => mut_buf,
                         None =>
@@ -76,17 +77,16 @@ impl Handler for Echo {
                         }
                         None => panic!("Error finding the mut_buf for {:?}", token)
                     };
-
                 } else {
-        event_loop.reregister(*non_block_client, token, **interest,
-                              PollOpt::edge() | PollOpt::oneshot()).unwrap();
- 
                     match self.mut_buf.get_mut(&token.as_usize()) {
                         Some(mut_buf) => mut_buf.push_all(buf.flip().bytes()),
                         None => panic!("Error finding the mut_buf for {:?}", token)
                     }
-                    
+
                     interest.insert(Interest::readable());
+                    println!("1");
+                    event_loop.reregister(*non_block_client, token, **interest, PollOpt::edge()).unwrap();
+                    println!("2");
                 }
             }
             Err(e) => {
@@ -138,7 +138,7 @@ impl Handler for Echo {
         let token = Token(self.action.len() + 1);
         let action = get_action(tuple.0);
         self.action.insert(token.as_usize(), action.clone());
-               
+
         match action {
             HttpAction::Get(url_p) => {
                 let url: Url = (*url_p).clone();
@@ -152,7 +152,7 @@ impl Handler for Echo {
                 self.interest.insert(token.as_usize(), Interest::hup());
                 event_loop.register_opt(self.non_block_client.get(&token.as_usize()).unwrap(),
                                         token, Interest::writable(),
-                                        PollOpt::edge() | PollOpt::oneshot()).unwrap();
+                                        PollOpt::edge() ).unwrap();
             }
         }
     }
