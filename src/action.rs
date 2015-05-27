@@ -5,6 +5,7 @@ use mio::buf::ByteBuf;
 use std::net::SocketAddr;
 use std::net::lookup_host;
 use std::collections::VecMap;
+use url::{Url, ParseError};
 use eventual;
 
 #[derive(Debug)]
@@ -139,6 +140,11 @@ impl Handler for Echo {
     }
 }
 
-fn url_tuple(_: String) -> (String, u16, HttpAction) {
-    ("google.com".to_string(), 80, HttpAction::Get(Arc::new("/".to_string())))
+fn url_tuple(url_s: String) -> (String, u16, HttpAction) {
+	let url = Url::parse(url_s.as_str()).unwrap();
+	println!("{:?}", url);
+	let path = url.serialize_path().unwrap();
+    (url.domain().unwrap().to_string(), 
+    	url.port_or_default().unwrap(), 
+    	HttpAction::Get(Arc::new(path)))
 }

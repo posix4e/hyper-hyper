@@ -21,7 +21,7 @@ fn get_a_simple_webpage_2() {
     //  	"google.com".to_string(), 
     //   	80, 
     //    	HttpAction::Get(Rc::new(String::from_str("/"))));
-    event_loop.channel().send(("test".to_string(), tx));
+    event_loop.channel().send(("http://www.google.com/".to_string(), tx));
 
     thread::spawn(move || {
         let echo = &mut Echo::new();

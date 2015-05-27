@@ -3,6 +3,9 @@ name = "hyperhyper"
 version = "0.0.1"
 authors = ["Alex Newman <posix4e@gmail.com>"]
 
+[dependencies]
+url = "0.2.34"
+
 [dependencies.mio]
 git = "https://github.com/carllerche/mio"
 
