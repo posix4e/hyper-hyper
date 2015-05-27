@@ -5,3 +5,6 @@ authors = ["Alex Newman <posix4e@gmail.com>"]
 
 [dependencies.mio]
 git = "https://github.com/carllerche/mio"
+
+[dependencies.eventual]
+git = "https://github.com/carllerche/eventual"

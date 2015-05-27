@@ -5,4 +5,5 @@
 #![feature(ip_addr)]
 
 extern crate mio;
+extern crate eventual;
 pub mod action;
