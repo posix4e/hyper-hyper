@@ -31,10 +31,3 @@ fn get_a_simple_webpage_2() {
     let vec = &*rx.await().unwrap();
     assert!( str::from_utf8(vec).unwrap().contains("google"));
 }
-fn poke_web_page_async(mut event_loop: EventLoop<Echo>,
-                       sender: eventual::Complete<Vec<u8>, &'static str>,
-                       hostname: String,
-                       port: u16,
-                       action: HttpAction) {
-    println!("poke");
-}
