@@ -5,7 +5,7 @@ use mio::buf::ByteBuf;
 use std::net::SocketAddr;
 use std::net::lookup_host;
 use std::collections::VecMap;
-use url::{Url, ParseError};
+use url::Url;
 use eventual;
 
 #[derive(Debug)]
@@ -49,7 +49,7 @@ impl Handler for Echo {
 
         match non_block_client.read(&mut buf) {
             Ok(None) => {
-                println!("We just got readable, but were unable to read from the socket?");
+                panic!("We just got readable, but were unable to read from the socket?");
             }
             Ok(Some(r)) => {
                 self.interest.remove(Interest::readable());
@@ -80,8 +80,8 @@ impl Handler for Echo {
                 }
             }
             Err(e) => {
-                println!("not implemented; client err={:?}", e);
                 self.interest.remove(Interest::readable());
+                panic!("not implemented; client err={:?}", e);
             }
         }
     }
@@ -101,7 +101,6 @@ impl Handler for Echo {
             HttpAction::Get(ref resource) => {
                 let get_command: String = String::from_str("GET ") + resource + "\n";
                 let mut buf = ByteBuf::from_slice(get_command.as_bytes());
-                println!("GET {}", resource);
                 match non_block_client.write(&mut buf) {
                     Ok(None) => {
                         println!("client flushing buf; WOULDBLOCK");
@@ -124,8 +123,6 @@ impl Handler for Echo {
               tuple: (String, eventual::Complete<Box<Vec<u8>>, &'static str>)) {
 
         let token = Token(self.action.len() + 1);
-        println!("notify token {:?}", token);
-
         let url_tuple = url_tuple(tuple.0);
         let ip = lookup_host(&url_tuple.0).unwrap().next().unwrap().unwrap();
         let address = SocketAddr::new(ip.ip(), url_tuple.1);
@@ -142,7 +139,6 @@ impl Handler for Echo {
 
 fn url_tuple(url_s: String) -> (String, u16, HttpAction) {
 	let url = Url::parse(url_s.as_str()).unwrap();
-	println!("{:?}", url);
 	let path = url.serialize_path().unwrap();
     (url.domain().unwrap().to_string(), 
     	url.port_or_default().unwrap(), 
