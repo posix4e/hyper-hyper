@@ -6,6 +6,7 @@ use std::net::SocketAddr;
 use std::net::lookup_host;
 use std::collections::VecMap;
 use url::Url;
+
 use eventual;
 
 #[derive(Debug, Clone)]
@@ -52,7 +53,7 @@ impl Handler for Echo {
             Some(interest) => interest,
             None => panic!("Error finding the associated interest {:?}", token)
         };
-        match non_block_client.read(&mut buf) {
+        match non_block_client.try_read_buf(&mut buf) {
 
             Ok(None) => {
                 panic!("We just got readable, but were unable to read from the socket?");
@@ -114,7 +115,7 @@ impl Handler for Echo {
         match **action {
             HttpAction::Get(_) => {
                 let mut buf = ByteBuf::from_slice(get_command.as_bytes());
-                match non_block_client.write(&mut buf) {
+                match non_block_client.try_write_buf(&mut buf) {
                     Ok(None) => {
                         println!("client flushing buf; WOULDBLOCK");
                         self.buf = Some(buf);
