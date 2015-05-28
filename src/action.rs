@@ -1,12 +1,11 @@
 use std::sync::Arc;
 use mio::*;
 use mio::tcp::{TcpStream, TcpSocket};
-use mio::buf::ByteBuf;
+use mio::buf::{ByteBuf, MutByteBuf};
 use std::net::SocketAddr;
 use std::net::lookup_host;
 use std::collections::VecMap;
 use url::Url;
-
 use eventual;
 
 #[derive(Debug, Clone)]
@@ -14,24 +13,32 @@ pub enum HttpAction {
     Get(Arc<Url>),
 }
 
+pub struct ClientInfo {
+    tcp_stream: TcpStream,
+    action: HttpAction,
+    complete: eventual::Complete<Box<Vec<u8>>, &'static str>,
+    mut_buf: Vec<u8>
+}
+
+impl ClientInfo {
+
+    pub fn add_to_buffer(&mut self, buf: MutByteBuf) {
+        self.mut_buf.push_all(buf.flip().bytes());
+    }
+    
+    pub fn complete(self){
+    	self.complete.complete(Box::new(self.mut_buf));
+    }
+}
+
 pub struct Echo {
-    non_block_client: VecMap<TcpStream>,
-    action: VecMap<HttpAction>,
-    sender: VecMap<eventual::Complete<Box<Vec<u8>>, &'static str>>,
-    mut_buf: VecMap<Vec<u8>>,
-    buf: Option<ByteBuf>,
-    interest: VecMap<Interest>
+    client_info: VecMap<Box<ClientInfo>>,
 }
 
 impl Echo {
     pub fn new() -> Echo {
         Echo {
-            non_block_client: VecMap::new(),
-            action: VecMap::new(),
-            sender: VecMap::new(),
-            mut_buf: VecMap::new(),
-            interest: VecMap::new(),
-            buf: None,
+            client_info: VecMap::new(),
         }
     }
 }
@@ -41,91 +48,30 @@ impl Handler for Echo {
     type Message = (String, eventual::Complete<Box<Vec<u8>>, &'static str>);
 
     fn readable(&mut self, event_loop: &mut EventLoop<Echo>, token: Token, hint: ReadHint) {
-        println!("Read {:?} {:?}", hint, token);
-
         let mut buf = ByteBuf::mut_with_capacity(4096 * 16);
-
-        let ref mut non_block_client = match self.non_block_client.get_mut(&token.as_usize()) {
-            Some(client) => client,
-            None => panic!("Error finding the associated non blocking client {:?}", token)
-        };
-        let ref mut interest = match self.interest.get_mut(&token.as_usize()) {
-            Some(interest) => interest,
-            None => panic!("Error finding the associated interest {:?}", token)
-        };
-        match non_block_client.try_read_buf(&mut buf) {
-
-            Ok(None) => {
-                panic!("We just got readable, but were unable to read from the socket?");
-            }
-            Ok(Some(r)) => {
-            	println!("r {} ", r);
-                interest.remove(Interest::readable());
-                if r == 0 {
-                    println!("DONE");
-                    //event_loop.deregister(*non_block_client).unwrap();
-                    let mut_buf = match self.mut_buf.remove(&token.as_usize()) {
-                        Some(mut_buf) => mut_buf,
-                        None =>
-                            panic!("Error finding the mut_buf for {:?} {:?}", token, self.mut_buf)
-                    };
-
-                    match self.sender.remove(&token.as_usize()) {
-                        Some(completer) => {
-                            completer.complete(Box::new(mut_buf));
-                            interest.remove(Interest::none());
-                        }
-                        None => panic!("Error finding the mut_buf for {:?}", token)
-                    };
-                } else {
-                    match self.mut_buf.get_mut(&token.as_usize()) {
-                        Some(mut_buf) => mut_buf.push_all(buf.flip().bytes()),
-                        None => panic!("Error finding the mut_buf for {:?}", token)
-                    }
-
-                    interest.insert(Interest::readable());
-                    println!("1");
-                    event_loop.reregister(*non_block_client, token, **interest, PollOpt::edge()).unwrap();
-                    println!("2");
-                }
-            }
-            Err(e) => {
-                panic!("not implemented; client err={:?}", e);
-            }
+        let mut client_info = self.client_info.get_mut(&token.as_usize()).unwrap();
+        let r = client_info.tcp_stream.try_read_buf(&mut buf).unwrap().unwrap();
+        
+        if r != 0 {
+            client_info.add_to_buffer(buf);
+        } else {
+        	client_info.complete();
         }
     }
 
     fn writable(&mut self, event_loop: &mut EventLoop<Echo>, token: Token) {
-        let ref mut action = match self.action.get_mut(&token.as_usize()) {
-            Some(action) => action,
-            None => panic!("Error finding the associated action {:?}", token)
-        };
-        let get_command: String = body(action.clone());
-
-        let ref mut non_block_client = match self.non_block_client.get_mut(&token.as_usize()) {
-            Some(client) => client,
-            None => panic!("Error finding the associated non blocking client {:?}", token)
-        };
-
-        let ref mut interest = match self.interest.get_mut(&token.as_usize()) {
-            Some(interest) => interest,
-            None => panic!("Error finding the associated interest {:?}", token)
-        };
-
-        match **action {
+        let client_info = self.client_info.get_mut(&token.as_usize()).unwrap();
+        let get_command: String = body(client_info.action.clone());
+        match client_info.action {
             HttpAction::Get(_) => {
                 let mut buf = ByteBuf::from_slice(get_command.as_bytes());
-                match non_block_client.try_write_buf(&mut buf) {
+                match client_info.tcp_stream.try_write_buf(&mut buf) {
                     Ok(None) => {
                         println!("client flushing buf; WOULDBLOCK");
-                        self.buf = Some(buf);
-                        interest.insert(Interest::writable());
+                        //   self.buf = Some(buf);
                     }
-                    Ok(Some(_)) => {
-                        interest.insert(Interest::readable());
-                        interest.remove(Interest::writable());
-                        event_loop.reregister(*non_block_client, token, **interest,
-                                              PollOpt::edge() | PollOpt::oneshot()).unwrap();
+                    Ok(Some(a)) => {
+                        println!("Writable {}", a);
                     }
                     Err(e) => panic!("not implemented; client err={:?}", e),
                 }
@@ -135,24 +81,23 @@ impl Handler for Echo {
     fn notify(&mut self,
               event_loop: &mut EventLoop<Echo>,
               tuple: (String, eventual::Complete<Box<Vec<u8>>, &'static str>)) {
-        let token = Token(self.action.len() + 1);
-        let action = get_action(tuple.0);
-        self.action.insert(token.as_usize(), action.clone());
+        let token = Token(self.client_info.len() + 1);
 
-        match action {
+        let action = get_action(tuple.0);
+        match action.clone() {
             HttpAction::Get(url_p) => {
                 let url: Url = (*url_p).clone();
                 let ip = lookup_host(url.domain().unwrap()).unwrap().next().unwrap().unwrap();
                 let port = url.port_or_default().unwrap();
                 let address = SocketAddr::new(ip.ip(), port);
                 let (sock, _) = TcpSocket::v4().unwrap().connect(&address).unwrap();
-                self.non_block_client.insert(token.as_usize(), sock);
-                self.sender.insert(token.as_usize(), tuple.1);
-                self.mut_buf.insert(token.as_usize(), Vec::new());
-                self.interest.insert(token.as_usize(), Interest::hup());
-                event_loop.register_opt(self.non_block_client.get(&token.as_usize()).unwrap(),
-                                        token, Interest::writable(),
-                                        PollOpt::edge() ).unwrap();
+                let client_info = ClientInfo {
+                    tcp_stream: sock,
+                    action: action,
+                    complete: tuple.1,
+                    mut_buf: Vec::new()
+                };
+                event_loop.register(&client_info.tcp_stream, token);
             }
         }
     }
