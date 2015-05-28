@@ -25,9 +25,9 @@ impl ClientInfo {
     pub fn add_to_buffer(&mut self, buf: MutByteBuf) {
         self.mut_buf.push_all(buf.flip().bytes());
     }
-    
-    pub fn complete(self){
-    	self.complete.complete(Box::new(self.mut_buf));
+
+    pub fn complete(self) {
+        self.complete.complete(Box::new(self.mut_buf));
     }
 }
 
@@ -51,11 +51,11 @@ impl Handler for Echo {
         let mut buf = ByteBuf::mut_with_capacity(4096 * 16);
         let mut client_info = self.client_info.get_mut(&token.as_usize()).unwrap();
         let r = client_info.tcp_stream.try_read_buf(&mut buf).unwrap().unwrap();
-        
+
         if r != 0 {
             client_info.add_to_buffer(buf);
         } else {
-        	client_info.complete();
+            client_info.complete();
         }
     }
 
