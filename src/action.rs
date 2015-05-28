@@ -6,6 +6,7 @@ use std::net::SocketAddr;
 use std::net::lookup_host;
 use std::collections::VecMap;
 use url::Url;
+use std::str;
 use eventual;
 
 #[derive(Debug, Clone)]
@@ -22,17 +23,13 @@ pub struct ClientInfo {
 
 impl ClientInfo {
 
-    pub fn add_to_buffer(&mut self, buf: MutByteBuf) {
-        self.mut_buf.push_all(buf.flip().bytes());
-    }
-
     pub fn complete(self) {
         self.complete.complete(Box::new(self.mut_buf));
     }
 }
 
 pub struct Echo {
-    client_info: VecMap<Box<ClientInfo>>,
+    client_info: VecMap<ClientInfo>,
 }
 
 impl Echo {
@@ -48,15 +45,39 @@ impl Handler for Echo {
     type Message = (String, eventual::Complete<Box<Vec<u8>>, &'static str>);
 
     fn readable(&mut self, event_loop: &mut EventLoop<Echo>, token: Token, hint: ReadHint) {
-        let mut buf = ByteBuf::mut_with_capacity(4096 * 16);
-        let mut client_info = self.client_info.get_mut(&token.as_usize()).unwrap();
-        let r = client_info.tcp_stream.try_read_buf(&mut buf).unwrap().unwrap();
+        println!("foo {:?}", hint);
+            let mut closed = false;
 
-        if r != 0 {
-            client_info.add_to_buffer(buf);
+        if !hint.is_hup() {
+            println!("READ!");
+            let mut buf = ByteBuf::mut_with_capacity(4096 * 16);
+            let mut client_info = self.client_info.get_mut(&token.as_usize()).unwrap();
+            match client_info.tcp_stream.try_read_buf(&mut buf).unwrap() {
+                Some(r) => {
+                    println!("r:{}", r);
+                    if r > 0 {
+                        client_info.mut_buf.push_all(buf.flip().bytes());
+
+                        event_loop.reregister(&client_info.tcp_stream, token,
+                                              Interest::readable(),
+                                              PollOpt::edge() | PollOpt::oneshot()).unwrap();
+                    } else {
+                        event_loop.deregister(&client_info.tcp_stream).unwrap();
+                        closed = true;
+                    }
+                }
+                _ => {
+                    panic!("err!");
+                }
+            }
+
         } else {
-            client_info.complete();
+            println!("Done!");
         }
+        if closed {
+                   self.client_info.remove(&token.as_usize()).unwrap().complete();
+                   }
+ 
     }
 
     fn writable(&mut self, event_loop: &mut EventLoop<Echo>, token: Token) {
@@ -67,7 +88,7 @@ impl Handler for Echo {
                 let mut buf = ByteBuf::from_slice(get_command.as_bytes());
                 match client_info.tcp_stream.try_write_buf(&mut buf) {
                     Ok(None) => {
-                        println!("client flushing buf; WOULDBLOCK");
+                        panic!("client flushing buf; WOULDBLOCK");
                         //   self.buf = Some(buf);
                     }
                     Ok(Some(a)) => {
@@ -75,6 +96,9 @@ impl Handler for Echo {
                     }
                     Err(e) => panic!("not implemented; client err={:?}", e),
                 }
+
+                event_loop.reregister(&client_info.tcp_stream, token, Interest::readable(),
+                                      PollOpt::edge() | PollOpt::oneshot()).unwrap();
             }
         }
     }
@@ -97,7 +121,10 @@ impl Handler for Echo {
                     complete: tuple.1,
                     mut_buf: Vec::new()
                 };
-                event_loop.register(&client_info.tcp_stream, token);
+
+                event_loop.register_opt(&client_info.tcp_stream, token, Interest::writable(),
+                                        PollOpt::edge() | PollOpt::oneshot()).unwrap();
+                self.client_info.insert(token.as_usize(), client_info);
             }
         }
     }
@@ -107,7 +134,7 @@ fn body(action: HttpAction) -> String {
     match action {
         HttpAction::Get(ref resource) => {
             format!(
-                "GET {}  HTTP/1.1\r\nHost: {}\r\nUser-Agent: curl/7.37.1\r\nAccept */*\r\n\r\n",
+                "GET {}  HTTP/1.1\r\nHost: {}\r\nUser-Agent: curl/7.37.1\r\nAccept */*\r\nConnection: close \r\n\r\n",
                 resource.serialize_path().unwrap(), resource.domain().unwrap())
         }
     }
