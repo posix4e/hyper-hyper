@@ -1,12 +1,12 @@
 use std::sync::Arc;
 use mio::*;
 use mio::tcp::{TcpStream, TcpSocket};
-use mio::buf::{ByteBuf, MutByteBuf};
+use mio::buf::ByteBuf;
 use std::net::SocketAddr;
 use std::net::lookup_host;
 use std::collections::VecMap;
 use url::Url;
-use std::str;
+
 use eventual;
 
 #[derive(Debug, Clone)]
@@ -45,16 +45,13 @@ impl Handler for Echo {
     type Message = (String, eventual::Complete<Box<Vec<u8>>, &'static str>);
 
     fn readable(&mut self, event_loop: &mut EventLoop<Echo>, token: Token, hint: ReadHint) {
-        println!("foo {:?}", hint);
             let mut closed = false;
 
         if !hint.is_hup() {
-            println!("READ!");
             let mut buf = ByteBuf::mut_with_capacity(4096 * 16);
             let mut client_info = self.client_info.get_mut(&token.as_usize()).unwrap();
             match client_info.tcp_stream.try_read_buf(&mut buf).unwrap() {
                 Some(r) => {
-                    println!("r:{}", r);
                     if r > 0 {
                         client_info.mut_buf.push_all(buf.flip().bytes());
 
@@ -72,8 +69,11 @@ impl Handler for Echo {
             }
 
         } else {
-            println!("Done!");
-        }
+        	            let client_info = self.client_info.remove(&token.as_usize()).unwrap();
+
+ event_loop.deregister(&client_info.tcp_stream).unwrap();
+                        closed = true;
+                                }
         if closed {
                    self.client_info.remove(&token.as_usize()).unwrap().complete();
                    }
@@ -91,9 +91,7 @@ impl Handler for Echo {
                         panic!("client flushing buf; WOULDBLOCK");
                         //   self.buf = Some(buf);
                     }
-                    Ok(Some(a)) => {
-                        println!("Writable {}", a);
-                    }
+                    Ok(Some(_)) => {} 
                     Err(e) => panic!("not implemented; client err={:?}", e),
                 }
 
