@@ -1,0 +1,2 @@
+hyper-hyper provides streaming abstraction with eventual (todo) over http connections using rust-curl (todo). This should provide fast with the goal of providing fast http 2.0 library for rust. The design is based on the excellent example in the curl src http://curl.haxx.se/libcurl/c/hiperfifo.html. It might be good if you need to web crawl or very quickly access the web. Our goal is to make http easy and safe by making use of rust's built in algebriac types and pattern matching.
+
