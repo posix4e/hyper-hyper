@@ -138,6 +138,9 @@ fn body(action: HttpAction) -> String {
 }
 fn get_action(url_s: String) -> HttpAction {
     let htt = http::multi_handle();
+
+    let handle = http::handle();
+    htt.add_connection(handle);
     let url = Url::parse(url_s.as_str()).unwrap();
     HttpAction::Get(Arc::new(url))
 }
