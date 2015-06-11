@@ -1,3 +1,4 @@
+extern crate curl;
 use std::sync::Arc;
 use mio::*;
 use mio::tcp::{TcpStream, TcpSocket};
@@ -6,7 +7,7 @@ use std::net::SocketAddr;
 use std::net::lookup_host;
 use std::collections::VecMap;
 use url::Url;
-
+use curl::http;
 use eventual;
 
 #[derive(Debug, Clone)]
@@ -77,7 +78,7 @@ impl Handler for Echo {
         if closed {
                    self.client_info.remove(&token.as_usize()).unwrap().complete();
                    }
- 
+
     }
 
     fn writable(&mut self, event_loop: &mut EventLoop<Echo>, token: Token) {
@@ -91,7 +92,7 @@ impl Handler for Echo {
                         panic!("client flushing buf; WOULDBLOCK");
                         //   self.buf = Some(buf);
                     }
-                    Ok(Some(_)) => {} 
+                    Ok(Some(_)) => {}
                     Err(e) => panic!("not implemented; client err={:?}", e),
                 }
 
@@ -138,6 +139,7 @@ fn body(action: HttpAction) -> String {
     }
 }
 fn get_action(url_s: String) -> HttpAction {
+    let htt = http::multi_handle();
     let url = Url::parse(url_s.as_str()).unwrap();
     HttpAction::Get(Arc::new(url))
 }

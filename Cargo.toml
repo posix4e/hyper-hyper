@@ -11,3 +11,6 @@ git = "https://github.com/carllerche/mio"
 
 [dependencies.eventual]
 git = "https://github.com/carllerche/eventual"
+
+[dependencies.curl]
+git = "file:///home/posix4e/projects/curl-rust"
