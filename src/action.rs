@@ -46,7 +46,7 @@ impl Handler for Echo {
     type Message = (String, eventual::Complete<Box<Vec<u8>>, &'static str>);
 
     fn readable(&mut self, event_loop: &mut EventLoop<Echo>, token: Token, hint: ReadHint) {
-            let mut closed = false;
+        let mut closed = false;
 
         if !hint.is_hup() {
             let mut buf = ByteBuf::mut_with_capacity(4096 * 16);
@@ -56,8 +56,7 @@ impl Handler for Echo {
                     if r > 0 {
                         client_info.mut_buf.push_all(buf.flip().bytes());
 
-                        event_loop.reregister(&client_info.tcp_stream, token,
-                                              Interest::readable(),
+                        event_loop.reregister(&client_info.tcp_stream, token, Interest::readable(),
                                               PollOpt::edge() | PollOpt::oneshot()).unwrap();
                     } else {
                         event_loop.deregister(&client_info.tcp_stream).unwrap();
@@ -70,15 +69,14 @@ impl Handler for Echo {
             }
 
         } else {
-        	            let client_info = self.client_info.remove(&token.as_usize()).unwrap();
+            let client_info = self.client_info.remove(&token.as_usize()).unwrap();
 
- event_loop.deregister(&client_info.tcp_stream).unwrap();
-                        closed = true;
-                                }
+            event_loop.deregister(&client_info.tcp_stream).unwrap();
+            closed = true;
+        }
         if closed {
-                   self.client_info.remove(&token.as_usize()).unwrap().complete();
-                   }
-
+            self.client_info.remove(&token.as_usize()).unwrap().complete();
+        }
     }
 
     fn writable(&mut self, event_loop: &mut EventLoop<Echo>, token: Token) {
